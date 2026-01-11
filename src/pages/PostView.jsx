@@ -1,28 +1,54 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { postsAPI, commentsAPI } from '../services/api';
+import { postsAPI, commentsAPI, profileAPI } from '../services/api';
 import { useAuth } from '../utils/AuthContext';
-import MarkdownRenderer from '../components/MarkdownRenderer'; // 👈 ДОБАВИЛИ
+import MarkdownRenderer from '../components/MarkdownRenderer';
+import AvatarDisplay from '../components/AvatarDisplay';
 
 // CommentItem - компонент для отдельного комментария
-const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText, setReplyText, handleAddReply, handleDeleteComment }) => (
+const CommentItem = ({
+  comment,
+  level = 0,
+  user,
+  replyTo,
+  setReplyTo,
+  replyText,
+  setReplyText,
+  handleAddReply,
+  handleDeleteComment,
+  avatars,
+  selectedCommentAvatarId,
+  setSelectedCommentAvatarId,
+  defaultAvatarId
+}) => (
   <div
   key={comment.commentId}
   style={{
     marginLeft: `${level * 2}rem`,
     borderLeft: level > 0 ? '2px solid var(--border)' : 'none',
-                                                                                                                                          paddingLeft: level > 0 ? '1rem' : '0',
-                                                                                                                                          marginBottom: '1rem'
+       paddingLeft: level > 0 ? '1rem' : '0',
+       marginBottom: '1rem'
   }}
   >
   <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem' }}>
+  <div className="comment-with-avatar">
+  {/* Аватар комментария */}
+  <div className="comment-avatar-container">
+  <AvatarDisplay
+  userId={comment.userId}
+  avatarId={comment.commentAvatarId}
+  username={comment.username}
+  size={32}
+  />
+  </div>
+
+  <div style={{ flex: 1 }}>
   <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>
   <strong>{comment.username}</strong>
   <span> • </span>
   <span>{new Date(comment.createdAt).toLocaleString('ru-RU')}</span>
   </div>
 
-  {/* 👇 ИЗМЕНИЛИ: теперь рендерим Markdown */}
   <div style={{ marginBottom: '0.75rem' }}>
   <MarkdownRenderer content={comment.content} />
   </div>
@@ -46,11 +72,35 @@ const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText,
     </button>
   )}
   </div>
+  </div>
+  </div>
 
   {/* Форма ответа на комментарий */}
   {replyTo === comment.commentId && (
     <div style={{ marginTop: '0.75rem', marginLeft: '1rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem' }}>
     <form onSubmit={(e) => handleAddReply(e, comment.commentId)}>
+    {/* Выбор аватара для ответа */}
+    {avatars.length > 0 && (
+      <div style={{ marginBottom: '10px' }}>
+      <label style={{ fontSize: '0.875rem', marginBottom: '5px', display: 'block' }}>Аватар для ответа:</label>
+      <div className="avatar-selector">
+      {avatars.map((avatar) => (
+        <div
+        key={avatar.avatarId}
+        className={`avatar-option ${selectedCommentAvatarId === avatar.avatarId ? 'selected' : ''}`}
+        onClick={() => setSelectedCommentAvatarId(avatar.avatarId)}
+        style={{ width: '40px', height: '40px' }}
+        >
+        <img src={avatar.dataUrl} alt="Avatar" style={{ width: '35px', height: '35px' }} />
+        {avatar.avatarId === defaultAvatarId && (
+          <span className="avatar-badge" style={{ fontSize: '8px' }}>По умолч.</span>
+        )}
+        </div>
+      ))}
+      </div>
+      </div>
+    )}
+
     <textarea
     value={replyText}
     onChange={(e) => setReplyText(e.target.value)}
@@ -90,6 +140,10 @@ const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText,
       setReplyText={setReplyText}
       handleAddReply={handleAddReply}
       handleDeleteComment={handleDeleteComment}
+      avatars={avatars}
+      selectedCommentAvatarId={selectedCommentAvatarId}
+      setSelectedCommentAvatarId={setSelectedCommentAvatarId}
+      defaultAvatarId={defaultAvatarId}
       />
     ))}
     </div>
@@ -108,12 +162,19 @@ export default function PostView() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Аватары для комментариев
+  const [avatars, setAvatars] = useState([]);
+  const [selectedCommentAvatarId, setSelectedCommentAvatarId] = useState(null);
+  const [defaultAvatarId, setDefaultAvatarId] = useState(null);
+
   useEffect(() => {
     loadPost();
     loadComments();
-  }, [postId]);
+    if (user) {
+      loadAvatars();
+    }
+  }, [postId, user]);
 
-  // Скролл к якорю после загрузки
   useEffect(() => {
     if (!loading && window.location.hash) {
       setTimeout(() => {
@@ -122,7 +183,6 @@ export default function PostView() {
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-          // Если якорь на форму комментария - фокус на textarea
           if (hash === 'comment-form') {
             const textarea = element.querySelector('textarea');
             if (textarea) {
@@ -154,12 +214,31 @@ export default function PostView() {
     }
   };
 
+  const loadAvatars = async () => {
+    try {
+      const response = await profileAPI.getProfile();
+      const profile = response.data;
+      setAvatars(profile.avatars || []);
+      setDefaultAvatarId(profile.activeAvatarId);
+      setSelectedCommentAvatarId(profile.activeAvatarId);
+    } catch (err) {
+      console.error('Failed to load avatars:', err);
+    }
+  };
+
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
 
     try {
-      await commentsAPI.create(postId, { content: newComment });
+      const commentData = { content: newComment };
+
+      // Добавляем avatarId только если выбран НЕ дефолтный
+      if (selectedCommentAvatarId && selectedCommentAvatarId !== defaultAvatarId) {
+        commentData.commentAvatarId = selectedCommentAvatarId;
+      }
+
+      await commentsAPI.create(postId, commentData);
       setNewComment('');
       loadComments();
     } catch (error) {
@@ -173,10 +252,17 @@ export default function PostView() {
     if (!replyText.trim()) return;
 
     try {
-      await commentsAPI.create(postId, {
+      const commentData = {
         content: replyText,
         parentCommentId: parentCommentId
-      });
+      };
+
+      // Добавляем avatarId только если выбран НЕ дефолтный
+      if (selectedCommentAvatarId && selectedCommentAvatarId !== defaultAvatarId) {
+        commentData.commentAvatarId = selectedCommentAvatarId;
+      }
+
+      await commentsAPI.create(postId, commentData);
       setReplyText('');
       setReplyTo(null);
       loadComments();
@@ -236,7 +322,6 @@ export default function PostView() {
     }
   };
 
-  // Построение дерева комментариев
   const buildCommentTree = (comments) => {
     const map = {};
     const roots = [];
@@ -270,6 +355,18 @@ export default function PostView() {
     </Link>
 
     <div className="post-card">
+    {/* Пост с аватаром */}
+    <div className="post-with-avatar">
+    <div className="post-avatar-container">
+    <AvatarDisplay
+    userId={post.userId}
+    avatarId={post.postAvatarId}
+    username={post.username}
+    size={50}
+    />
+    </div>
+
+    <div style={{ flex: 1 }}>
     <div className="post-header">
     <h1 className="post-title">{post.title}</h1>
     <div className="post-meta">
@@ -279,7 +376,6 @@ export default function PostView() {
     </div>
     </div>
 
-    {/* 👇 ИЗМЕНИЛИ: теперь рендерим Markdown */}
     <div className="post-content-wrapper">
     <div className="post-content">
     <MarkdownRenderer content={post.content} />
@@ -320,12 +416,35 @@ export default function PostView() {
     )}
     </div>
     </div>
+    </div>
+    </div>
 
     {/* ФОРМА ДОБАВЛЕНИЯ КОММЕНТАРИЯ */}
     {user ? (
       <div className="comment-form" id="comment-form">
       <h3>Добавить комментарий</h3>
       <form onSubmit={handleAddComment}>
+      {/* Выбор аватара для комментария */}
+      {avatars.length > 0 && (
+        <div style={{ marginBottom: '15px' }}>
+        <label style={{ fontSize: '0.875rem', marginBottom: '8px', display: 'block' }}>Выберите аватар:</label>
+        <div className="avatar-selector">
+        {avatars.map((avatar) => (
+          <div
+          key={avatar.avatarId}
+          className={`avatar-option ${selectedCommentAvatarId === avatar.avatarId ? 'selected' : ''}`}
+          onClick={() => setSelectedCommentAvatarId(avatar.avatarId)}
+          >
+          <img src={avatar.dataUrl} alt="Avatar" />
+          {avatar.avatarId === defaultAvatarId && (
+            <span className="avatar-badge">По умолчанию</span>
+          )}
+          </div>
+        ))}
+        </div>
+        </div>
+      )}
+
       <textarea
       value={newComment}
       onChange={(e) => setNewComment(e.target.value)}
@@ -363,6 +482,10 @@ export default function PostView() {
         setReplyText={setReplyText}
         handleAddReply={handleAddReply}
         handleDeleteComment={handleDeleteComment}
+        avatars={avatars}
+        selectedCommentAvatarId={selectedCommentAvatarId}
+        setSelectedCommentAvatarId={setSelectedCommentAvatarId}
+        defaultAvatarId={defaultAvatarId}
         />
       ))
     )}

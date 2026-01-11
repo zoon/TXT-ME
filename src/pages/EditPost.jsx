@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { postsAPI } from '../services/api';
+import { postsAPI, profileAPI } from '../services/api';
 import { useAuth } from '../utils/AuthContext';
-import MarkdownEditor from '../components/MarkdownEditor'; // 👈 ДОБАВИЛИ
+import MarkdownEditor from '../components/MarkdownEditor';
 
 export default function EditPost() {
   const { postId } = useParams();
@@ -16,9 +16,15 @@ export default function EditPost() {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
 
+  // Аватары
+  const [avatars, setAvatars] = useState([]);
+  const [selectedAvatarId, setSelectedAvatarId] = useState(null);
+  const [defaultAvatarId, setDefaultAvatarId] = useState(null);
+
   useEffect(() => {
     if (!authLoading && user) {
       loadPost();
+      loadAvatars();
     } else if (!authLoading && !user) {
       navigate('/login');
     }
@@ -38,6 +44,7 @@ export default function EditPost() {
       setTitle(loadedPost.title);
       setContent(loadedPost.content);
       setTags(loadedPost.tags?.join(', ') || '');
+      setSelectedAvatarId(loadedPost.postAvatarId || null);
     } catch (error) {
       console.error('Failed to load post:', error);
       navigate('/');
@@ -46,16 +53,36 @@ export default function EditPost() {
     }
   };
 
+  const loadAvatars = async () => {
+    try {
+      const response = await profileAPI.getProfile();
+      const profile = response.data;
+      setAvatars(profile.avatars || []);
+      setDefaultAvatarId(profile.activeAvatarId);
+    } catch (err) {
+      console.error('Failed to load avatars:', err);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
     try {
-      await postsAPI.update(postId, {
+      const postData = {
         title,
         content,
-        tags: tags.split(',').map(t => t.trim()).filter(t => t)
-      });
+        tags: tags.split(',').map(t => t.trim()).filter(t => t),
+      };
+
+      // Добавляем avatarId (может быть изменён или удалён)
+      if (selectedAvatarId) {
+        postData.postAvatarId = selectedAvatarId;
+      } else {
+        postData.postAvatarId = null; // Удаляем аватар
+      }
+
+      await postsAPI.update(postId, postData);
       navigate(`/posts/${postId}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update post');
@@ -84,7 +111,6 @@ export default function EditPost() {
 
     <div className="form-group">
     <label>Содержание</label>
-    {/* 👇 ЗАМЕНИЛИ textarea на MarkdownEditor */}
     <MarkdownEditor
     value={content}
     onChange={setContent}
@@ -98,9 +124,36 @@ export default function EditPost() {
     type="text"
     value={tags}
     onChange={(e) => setTags(e.target.value)}
-    placeholder="песадь, четадь"
+    placeholder="четадь, песадь"
     />
     </div>
+
+    {/* Выбор аватара */}
+    {avatars.length > 0 && (
+      <div className="form-group">
+      <label>Аватар для поста</label>
+      <div className="avatar-selector">
+      <div
+      className={`avatar-option ${selectedAvatarId === null ? 'selected' : ''}`}
+      onClick={() => setSelectedAvatarId(null)}
+      >
+      <div className="avatar-none">Без аватара</div>
+      </div>
+      {avatars.map((avatar) => (
+        <div
+        key={avatar.avatarId}
+        className={`avatar-option ${selectedAvatarId === avatar.avatarId ? 'selected' : ''}`}
+        onClick={() => setSelectedAvatarId(avatar.avatarId)}
+        >
+        <img src={avatar.dataUrl} alt="Avatar" />
+        {avatar.avatarId === defaultAvatarId && (
+          <span className="avatar-badge">По умолчанию</span>
+        )}
+        </div>
+      ))}
+      </div>
+      </div>
+    )}
 
     <div className="form-actions">
     <button type="submit" className="btn btn-primary">
