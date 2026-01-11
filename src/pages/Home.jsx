@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../utils/AuthContext';
 import signofImage from '../assets/signof.jpeg';
-
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 // Маппинг ролей на греческие буквы
 const getRoleDisplay = (role) => {
@@ -135,8 +135,9 @@ export default function Home() {
         </div>
 
         <div className="post-content-wrapper">
-        {/* ПОЛНЫЙ ТЕКСТ БЕЗ ОБРЕЗКИ */}
-        <div className="post-content">{post.content}</div>
+        <div className="post-content">
+        <MarkdownRenderer content={post.content} />
+        </div>
         </div>
 
         {/* ФУТЕР С ТЕГАМИ И ВСЕМИ ССЫЛКАМИ */}

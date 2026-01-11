@@ -1,27 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { postsAPI } from '../services/api';
 import { useAuth } from '../utils/AuthContext';
+import MarkdownEditor from '../components/MarkdownEditor'; // 👈 ДОБАВИЛИ
 
 export default function EditPost() {
   const { postId } = useParams();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [tags, setTags] = useState('');
+  const [post, setPost] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
 
-  // ДОБАВЛЕНО: useRef для отслеживания, были ли уже загружены данные
-  const isDataLoaded = useRef(false);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [tags, setTags] = useState('');
 
   useEffect(() => {
     if (!authLoading && user) {
-      // ИЗМЕНЕНО: загружаем только если данные еще не загружены
-      if (!isDataLoaded.current) {
-        loadPost();
-      }
+      loadPost();
     } else if (!authLoading && !user) {
       navigate('/login');
     }
@@ -30,19 +27,17 @@ export default function EditPost() {
   const loadPost = async () => {
     try {
       const response = await postsAPI.getById(postId);
-      const post = response.data.post;
+      const loadedPost = response.data.post;
 
-      if (user.userId !== post.userId) {
+      if (user.userId !== loadedPost.userId) {
         navigate('/');
         return;
       }
 
-      setTitle(post.title);
-      setContent(post.content);
-      setTags(post.tags ? post.tags.join(', ') : '');
-
-      // ДОБАВЛЕНО: помечаем, что данные загружены
-      isDataLoaded.current = true;
+      setPost(loadedPost);
+      setTitle(loadedPost.title);
+      setContent(loadedPost.content);
+      setTags(loadedPost.tags?.join(', ') || '');
     } catch (error) {
       console.error('Failed to load post:', error);
       navigate('/');
@@ -56,11 +51,10 @@ export default function EditPost() {
     setError('');
 
     try {
-      const tagsArray = tags.split(',').map(t => t.trim()).filter(t => t);
       await postsAPI.update(postId, {
         title,
         content,
-        tags: tagsArray
+        tags: tags.split(',').map(t => t.trim()).filter(t => t)
       });
       navigate(`/posts/${postId}`);
     } catch (err) {
@@ -68,13 +62,14 @@ export default function EditPost() {
     }
   };
 
-  if (authLoading || loading) {
-    return <div className="loading">Загрузка...</div>;
-  }
+  if (authLoading || loading) return <div className="loading">Загрузка...</div>;
+  if (!post) return null;
 
   return (
     <div className="edit-post">
-    <h1>Редактировать заметку</h1>
+    <h1>Редактировать пост</h1>
+    {error && <div className="error">{error}</div>}
+
     <form onSubmit={handleSubmit}>
     <div className="form-group">
     <label>Заголовок</label>
@@ -82,22 +77,23 @@ export default function EditPost() {
     type="text"
     value={title}
     onChange={(e) => setTitle(e.target.value)}
+    placeholder="Введите заголовок"
     required
-    maxLength={200}
     />
     </div>
+
     <div className="form-group">
     <label>Содержание</label>
-    <textarea
+    {/* 👇 ЗАМЕНИЛИ textarea на MarkdownEditor */}
+    <MarkdownEditor
     value={content}
-    onChange={(e) => setContent(e.target.value)}
-    required
-    rows={15}
-    maxLength={40000}
+    onChange={setContent}
+    placeholder="Напишите текст поста..."
     />
     </div>
+
     <div className="form-group">
-    <label>Метки (через запятую)</label>
+    <label>Теги (через запятую)</label>
     <input
     type="text"
     value={tags}
@@ -105,10 +101,12 @@ export default function EditPost() {
     placeholder="песадь, четадь"
     />
     </div>
-    {error && <div className="error">{error}</div>}
+
     <div className="form-actions">
-    <button type="submit">Сохранить</button>
-    <button type="button" onClick={() => navigate(`/posts/${postId}`)}>
+    <button type="submit" className="btn btn-primary">
+    Сохранить
+    </button>
+    <button type="button" onClick={() => navigate(-1)} className="btn">
     Отмена
     </button>
     </div>

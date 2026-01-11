@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../utils/AuthContext';
+import MarkdownRenderer from '../components/MarkdownRenderer'; // 👈 ДОБАВИЛИ
 
-// ВЫНЕСЛИ CommentItem ЗА ПРЕДЕЛЫ PostView - ТЕПЕРЬ НЕ БУДЕТ ПЕРЕСОЗДАВАТЬСЯ
+// CommentItem - компонент для отдельного комментария
 const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText, setReplyText, handleAddReply, handleDeleteComment }) => (
   <div
   key={comment.commentId}
@@ -14,31 +15,25 @@ const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText,
                                                                                                                                           marginBottom: '1rem'
   }}
   >
-  <div style={{
-    background: 'var(--card)',
-                                                                                                                                          border: '1px solid var(--border)',
-                                                                                                                                          borderRadius: 'var(--radius)',
-                                                                                                                                          padding: '1rem'
-  }}>
-  <div style={{
-    fontSize: '0.875rem',
-    color: 'var(--muted-foreground)',
-                                                                                                                                          marginBottom: '0.5rem'
-  }}>
-  <strong>{comment.username}</strong> • {new Date(comment.createdAt).toLocaleString('ru-RU')}
-  </div>
-  <div style={{ marginBottom: '0.75rem', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-  {comment.content}
+  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem' }}>
+  <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>
+  <strong>{comment.username}</strong>
+  <span> • </span>
+  <span>{new Date(comment.createdAt).toLocaleString('ru-RU')}</span>
   </div>
 
-  {/* КНОПКИ ПОД КОММЕНТАРИЕМ */}
+  {/* 👇 ИЗМЕНИЛИ: теперь рендерим Markdown */}
+  <div style={{ marginBottom: '0.75rem' }}>
+  <MarkdownRenderer content={comment.content} />
+  </div>
+
   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
   {user && (
     <button
     onClick={() => setReplyTo(replyTo === comment.commentId ? null : comment.commentId)}
     className="btn btn-primary"
     >
-    {replyTo === comment.commentId ? 'Отмена' : 'Ответить'}
+    {replyTo === comment.commentId ? '❌ Отмена' : '↩️ Ответить'}
     </button>
   )}
   {user && (user.username === comment.username || user.role === 'admin') && (
@@ -47,33 +42,21 @@ const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText,
     className="btn"
     style={{ color: '#dc2626' }}
     >
-    Удалить
+    🗑️ Удалить
     </button>
   )}
   </div>
-  </div>
 
-  {/* ВСТРОЕННАЯ ФОРМА ОТВЕТА ПОД КОММЕНТАРИЕМ */}
+  {/* Форма ответа на комментарий */}
   {replyTo === comment.commentId && (
-    <div style={{
-      marginTop: '0.75rem',
-      marginLeft: '1rem',
-      background: 'var(--card)',
-                                     border: '1px solid var(--border)',
-                                     borderRadius: 'var(--radius)',
-                                     padding: '1rem'
-    }}>
+    <div style={{ marginTop: '0.75rem', marginLeft: '1rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem' }}>
     <form onSubmit={(e) => handleAddReply(e, comment.commentId)}>
     <textarea
     value={replyText}
     onChange={(e) => setReplyText(e.target.value)}
     placeholder="Напишите ответ..."
     className="comment-textarea"
-    style={{
-      width: '100%',
-      minHeight: '80px',
-      marginBottom: '0.5rem'
-    }}
+    style={{ width: '100%', minHeight: '80px', marginBottom: '0.5rem' }}
     />
     <div style={{ display: 'flex', gap: '0.5rem' }}>
     <button type="submit" className="btn btn-primary">
@@ -81,10 +64,7 @@ const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText,
     </button>
     <button
     type="button"
-    onClick={() => {
-      setReplyTo(null);
-      setReplyText('');
-    }}
+    onClick={() => { setReplyTo(null); setReplyText(''); }}
     className="btn"
     >
     Отмена
@@ -93,8 +73,9 @@ const CommentItem = ({ comment, level = 0, user, replyTo, setReplyTo, replyText,
     </form>
     </div>
   )}
+  </div>
 
-  {/* ВЛОЖЕННЫЕ КОММЕНТАРИИ */}
+  {/* Рекурсивный рендеринг вложенных комментариев */}
   {comment.replies && comment.replies.length > 0 && (
     <div style={{ marginTop: '0.75rem' }}>
     {comment.replies.map(reply => (
@@ -132,17 +113,16 @@ export default function PostView() {
     loadComments();
   }, [postId]);
 
-  // Обработка хеш-навигации при загрузке страницы из ленты
+  // Скролл к якорю после загрузки
   useEffect(() => {
     if (!loading && window.location.hash) {
-      // Задержка чтобы дать время DOM отрендериться
       setTimeout(() => {
-        const hash = window.location.hash.substring(1); // убираем #
+        const hash = window.location.hash.substring(1);
         const element = document.getElementById(hash);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-          // Если это форма комментария - ставим фокус
+          // Если якорь на форму комментария - фокус на textarea
           if (hash === 'comment-form') {
             const textarea = element.querySelector('textarea');
             if (textarea) {
@@ -150,9 +130,9 @@ export default function PostView() {
             }
           }
         }
-      }, 200); // увеличенная задержка для надежности
+      }, 200);
     }
-  }, [loading, comments]); // Зависит от loading и comments
+  }, [loading, comments]);
 
   const loadPost = async () => {
     try {
@@ -168,7 +148,7 @@ export default function PostView() {
   const loadComments = async () => {
     try {
       const response = await commentsAPI.getByPost(postId);
-      setComments(response.data.comments || []);
+      setComments(response.data.comments);
     } catch (error) {
       console.error('Failed to load comments:', error);
     }
@@ -214,13 +194,13 @@ export default function PostView() {
       loadComments();
     } catch (error) {
       console.error('Delete comment error:', error);
-      const message = error.response?.data?.error || 'Не удалось удалить комментарий';
+      const message = error.response?.data?.error || 'Failed to delete comment';
       alert(message);
     }
   };
 
   const handleDeletePost = async () => {
-    if (!confirm('Удалить заметку?')) return;
+    if (!confirm('Удалить пост?')) return;
 
     try {
       await postsAPI.delete(postId);
@@ -233,11 +213,9 @@ export default function PostView() {
 
   const handleShare = () => {
     const url = window.location.href;
-    navigator.clipboard.writeText(url).then(() => {
-      alert('Ссылка скопирована в буфер обмена!');
-    }).catch(() => {
-      alert('Не удалось скопировать ссылку');
-    });
+    navigator.clipboard.writeText(url)
+    .then(() => alert('Ссылка скопирована!'))
+    .catch(() => alert('Не удалось скопировать ссылку'));
   };
 
   const scrollToComments = () => {
@@ -258,6 +236,7 @@ export default function PostView() {
     }
   };
 
+  // Построение дерева комментариев
   const buildCommentTree = (comments) => {
     const map = {};
     const roots = [];
@@ -267,8 +246,10 @@ export default function PostView() {
     });
 
     comments.forEach(comment => {
-      if (comment.parentCommentId && map[comment.parentCommentId]) {
-        map[comment.parentCommentId].replies.push(map[comment.commentId]);
+      if (comment.parentCommentId) {
+        if (map[comment.parentCommentId]) {
+          map[comment.parentCommentId].replies.push(map[comment.commentId]);
+        }
       } else {
         roots.push(map[comment.commentId]);
       }
@@ -278,7 +259,7 @@ export default function PostView() {
   };
 
   if (loading) return <div className="loading">Загрузка...</div>;
-  if (!post) return <div className="loading">Заметка не найдена</div>;
+  if (!post) return <div className="loading">Пост не найден</div>;
 
   const commentTree = buildCommentTree(comments);
 
@@ -298,8 +279,11 @@ export default function PostView() {
     </div>
     </div>
 
+    {/* 👇 ИЗМЕНИЛИ: теперь рендерим Markdown */}
     <div className="post-content-wrapper">
-    <div className="post-content">{post.content}</div>
+    <div className="post-content">
+    <MarkdownRenderer content={post.content} />
+    </div>
     </div>
 
     <div className="post-footer">
@@ -309,9 +293,10 @@ export default function PostView() {
       to={`/?tag=${encodeURIComponent(tag)}`}
       className="post-tag"
       >
-      #{tag}
+      {tag}
       </Link>
     ))}
+    </div>
 
     <div className="post-actions">
     <button onClick={scrollToComments} className="btn">
@@ -333,7 +318,6 @@ export default function PostView() {
       </button>
       </>
     )}
-    </div>
     </div>
     </div>
 
