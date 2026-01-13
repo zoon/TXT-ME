@@ -196,12 +196,6 @@ export default function Home() {
 
     {/* Sidebar */}
     <aside className={`sidebar ${sidebarExpanded ? 'expanded' : ''}`}>
-    <button
-    className="collapse-toggle mobile-only"
-    onClick={() => setSidebarExpanded(false)}
-    >
-    ✖️ Закрыть
-    </button>
 
     {user ? (
       <Link to="/posts/new" className="new-post-btn">
@@ -210,16 +204,23 @@ export default function Home() {
     ) : null}
 
     <div className="club-block">
+    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
     <img src={signofImage} alt="TXT-ME CLUB" className="club-icon" style={{ objectFit: 'cover' }} />
-    <h2>TXT-ME CLUB</h2>
+    <h2 style={{ margin: 0 }}>TXT-ME CLUB</h2>
+    </div>
     </div>
 
     <div className="user-section">
     {user ? (
       <div>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-      <div className="user-avatar"></div>
-      <div>
+      <AvatarDisplay
+      userId={user.userId}
+      avatarId={user.activeAvatarId}
+      username={user.username}
+      size={48}
+      />
+      <div style={{ marginLeft: '0.75rem' }}>
       <div style={{ fontWeight: 'var(--font-weight-medium)' }}>{user.username}</div>
       <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
       {getRoleDisplay(user.role)}

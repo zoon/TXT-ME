@@ -141,11 +141,11 @@ body {
 
 /* КНОПКА СВЕРНУТЬ - СКРЫТА НА ДЕСКТОПЕ */
 .collapse-toggle {
-  display: none !important;
+  display: none;
 }
 
 .collapse-toggle.mobile-only {
-  display: none !important;
+  display:;
 }
 
 /* Блок клуба */
@@ -153,8 +153,8 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
 }
 
 .club-icon {
@@ -171,7 +171,7 @@ body {
 }
 
 .user-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .user-avatar {
@@ -225,11 +225,11 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.5rem;
+  padding: 1rem;
 }
 
 .filter-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .filter-group:last-child {
